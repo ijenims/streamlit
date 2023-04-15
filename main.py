@@ -1,4 +1,6 @@
 import streamlit as st
+import pandas as pd
+from PIL import Image
 import time
 
 st.title('streamlit 超入門')
