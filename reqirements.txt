@@ -1,4 +1,4 @@
 streamlit==1.21.0
 pandas
 numpy
-plotly.express
+plotly=5.0
