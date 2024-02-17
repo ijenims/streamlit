@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 from PIL import Image
 import time
-import matplotlib.pyplot as plt
 
 st.title('streamlit 超入門')
 
