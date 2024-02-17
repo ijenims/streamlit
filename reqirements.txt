@@ -1,4 +1,6 @@
 streamlit==1.21.0
 pandas
+scipy
 numpy
+matplotlib
 plotly==5.0
