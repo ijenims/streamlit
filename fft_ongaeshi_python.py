@@ -86,8 +86,12 @@ if st.sidebar.button('追加'):
     new_row = {'c_No': c_no, 'w': weight, 'T': Tension, 'L': Length,
                 'Dt': Dt, 'I': I, 'EI': EI, 'xi': 0,
                 }
-    temp_df = st.session_state.inp.append(new_row, ignore_index=True)
-    st.session_state.inp = temp_df
+
+    new_df = pd.DataFrame([new_row])
+    st.session_state.inp = pd.concat([st.session_state.inp, new_df], ignore_index=True)
+
+    # temp_df = st.session_state.inp.append(new_row, ignore_index=True)
+    # st.session_state.inp = temp_df
 
     # st.session_state.inp = st.session_state.inp.append(new_row, ignore_index=True)
 
