@@ -86,7 +86,10 @@ if st.sidebar.button('追加'):
     new_row = {'c_No': c_no, 'w': weight, 'T': Tension, 'L': Length,
                 'Dt': Dt, 'I': I, 'EI': EI, 'xi': 0,
                 }
-    st.session_state.inp = st.session_state.inp.append(new_row, ignore_index=True)
+    temp_df = st.session_state.inp.append(new_row, ignore_index=True)
+    st.session_state.inp = temp_df
+
+    # st.session_state.inp = st.session_state.inp.append(new_row, ignore_index=True)
 
 
 ## メイン画面設定
