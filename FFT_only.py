@@ -86,7 +86,7 @@ def main():
                 # プレビュー用のデータフレーム作成
                 df_preview = pd.read_csv(
                     string_data,
-                    nrows=5,
+                    nrows=15,
                     encoding=encoding_checker.encoding,
                     header=None,
                     on_bad_lines='skip',
@@ -170,19 +170,18 @@ def main():
             if 'fft_done' in st.session_state and st.session_state.fft_done:
                 st.subheader(f"列 {st.session_state.fft_column} のFFT分析結果")
 
-                # グラフ設定用のコントロール
+                # Y軸スケールの選択（ラジオボタン）
+                yscale = st.radio(
+                    "縦軸の目盛り",
+                    options=['linear', 'log'],
+                    format_func=lambda x: '方眼目盛' if x == 'linear' else '対数目盛',
+                    horizontal=True,
+                    index=0
+                )
+                
+                # 横軸の範囲設定と更新ボタンを横に並べる
                 col1, col2 = st.columns([2, 1])
                 with col1:
-                    # Y軸スケールの選択（ラジオボタン）
-                    yscale = st.radio(
-                        "縦軸の目盛り",
-                        options=['linear', 'log'],
-                        format_func=lambda x: '方眼目盛' if x == 'linear' else '対数目盛',
-                        horizontal=True,
-                        index=0
-                    )
-                
-                with col2:
                     # 横軸の最大値設定
                     max_freq = st.number_input(
                         "周波数表示範囲 (Hz)",
@@ -191,10 +190,12 @@ def main():
                         value=int(st.session_state.frequencies.max()),
                         step=1
                     )
-
-                # グラフ更新ボタン
-                if st.button("グラフを更新", key="update_graph"):
-                    st.session_state.max_freq = max_freq
+                with col2:
+                    # グラフ更新ボタンを数値入力と同じ行に配置
+                    st.write("")  # 空行を追加してラベルの高さを合わせる
+                    update_pressed = st.button("グラフを更新", key="update_graph")
+                    if update_pressed:
+                        st.session_state.max_freq = max_freq
                 
                 # 初回表示時の設定
                 if 'max_freq' not in st.session_state:
