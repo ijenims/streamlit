@@ -90,7 +90,8 @@ def main():
                     encoding=encoding_checker.encoding,
                     header=None,
                     on_bad_lines='skip',
-                    sep=dialect.delimiter
+                    sep=',',         # ★ここを明示
+                    skipinitialspace=True  # ★カンマのあとにスペースがある場合も正しく処理
                 )
 
                 # StringIOを先頭に戻す
