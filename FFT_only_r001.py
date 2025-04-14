@@ -65,21 +65,17 @@ def main():
             encoding_checker = EncodingChecker(file_contents)
             text_content = file_contents.decode(encoding_checker.encoding)
 
-            # ========================== 🔍 表形式のプレビュー追加 ==========================
+            # 1. CSVファイルの冒頭15行プレビュー（表形式）
             lines = text_content.splitlines()
             preview_lines = lines[:15]
-
             split_rows = [line.split(',') for line in preview_lines]
             max_columns = max(len(row) for row in split_rows)
             normalized_rows = [row + [''] * (max_columns - len(row)) for row in split_rows]
-
             df_preview_raw = pd.DataFrame(normalized_rows)
             df_preview_raw.index.name = "行番号"
             df_preview_raw.columns = [f"列 {i}" for i in range(max_columns)]
-
-            st.subheader("🔍 CSVの冒頭15行プレビュー（表形式）")
+            st.subheader("🔍 CSVファイルの冒頭15行")
             st.dataframe(df_preview_raw)
-            # ===========================================================================
 
             # 文字列を再度読み込み用に変換
             string_data = io.StringIO(text_content)
@@ -88,7 +84,7 @@ def main():
             with st.sidebar:
                 skiprows = st.number_input("データ開始行", value=0, min_value=0)
 
-            # データプレビュー用（列選択のため）
+            # 2. データ開始行以降のプレビュー（表形式）
             string_data.seek(0)
             df_preview = pd.read_csv(
                 string_data,
@@ -100,8 +96,10 @@ def main():
                 sep=',',
                 skipinitialspace=True
             )
+            st.subheader(f"📊 データ開始行({skiprows}行目)以降のプレビュー")
+            st.dataframe(df_preview)
 
-            string_data.seek(0)
+            # 列選択
             with st.sidebar:
                 if df_preview.shape[1] > 0:
                     available_columns = list(range(df_preview.shape[1]))
@@ -114,9 +112,6 @@ def main():
                     if not usecols:
                         st.warning("少なくとも1つの列を選択してください")
                         st.stop()
-
-            st.subheader("データプレビュー")
-            st.dataframe(df_preview)
 
             # フルデータ読み込み
             string_data.seek(0)
@@ -132,6 +127,12 @@ def main():
             )
 
             with st.sidebar:
+                # 時系列データ表示ボタン
+                if st.button("時系列データを表示", key="show_raw_data"):
+                    st.session_state.show_raw = True
+                    st.session_state.df = df
+                    st.session_state.usecols = usecols
+                
                 fft_column = st.selectbox(
                     "FFT分析する列",
                     options=usecols,
@@ -139,6 +140,19 @@ def main():
                 )
                 samplerate = st.number_input("サンプリング周波数 (Hz)", value=1000, min_value=1)
 
+            # 時系列データのグラフ表示
+            if 'show_raw' in st.session_state and st.session_state.show_raw:
+                st.subheader("📈 選択列の時系列データ")
+                fig_raw, ax_raw = plt.subplots(figsize=(15, 5))
+                for col in st.session_state.usecols:
+                    ax_raw.plot(st.session_state.df[col], label=f'Column {col}', alpha=0.7)
+                ax_raw.set_xlabel('Sample')
+                ax_raw.set_ylabel('Amplitude')
+                ax_raw.legend()
+                ax_raw.grid(True)
+                st.pyplot(fig_raw)
+
+            with st.sidebar:
                 if st.button("FFT分析実行"):
                     filtered_frequencies, filtered_fft_result = GetFFT(df[fft_column], samplerate).results
                     st.session_state.fft_done = True
@@ -146,16 +160,6 @@ def main():
                     st.session_state.fft_result = filtered_fft_result
                     st.session_state.fft_column = fft_column
                     st.session_state.max_freq = int(filtered_frequencies.max())
-
-            st.subheader("選択された列のデータ")
-            fig_raw, ax_raw = plt.subplots(figsize=(15, 5))
-            for col in usecols:
-                ax_raw.plot(df[col], label=f'Column {col}', alpha=0.7)
-            ax_raw.set_xlabel('Sample')
-            ax_raw.set_ylabel('Amplitude')
-            ax_raw.legend()
-            ax_raw.grid(True)
-            st.pyplot(fig_raw)
 
             if 'fft_done' in st.session_state and st.session_state.fft_done:
                 st.subheader(f"列 {st.session_state.fft_column} のFFT分析結果")
