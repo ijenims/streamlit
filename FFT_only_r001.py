@@ -1,3 +1,18 @@
+# coding: utf-8
+'''
+FFT_only_r001.py
+# 2025.4.14 r001デプロイ
+
+# csvファイルをアップロードし, FFT分析結果をグラフで表示
+# Streamlit用 url: https://app-dsjptfkljmnx3rny74xnib.streamlit.app/
+# ピークサーチ機能なし
+# csvファイルの冒頭を表示し, データ開始行およびデータ列を指定する
+
+### 要改善点
+# 新しくファイルを読み込めば, 時系列データグラフ以下はリセットさせる
+'''
+
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -65,16 +80,16 @@ def main():
             encoding_checker = EncodingChecker(file_contents)
             text_content = file_contents.decode(encoding_checker.encoding)
 
-            # 1. CSVファイルの冒頭15行プレビュー（表形式）
+            # 1. CSVファイルの冒頭20行プレビュー（表形式）
             lines = text_content.splitlines()
-            preview_lines = lines[:15]
+            preview_lines = lines[:20]
             split_rows = [line.split(',') for line in preview_lines]
             max_columns = max(len(row) for row in split_rows)
             normalized_rows = [row + [''] * (max_columns - len(row)) for row in split_rows]
             df_preview_raw = pd.DataFrame(normalized_rows)
             df_preview_raw.index.name = "行番号"
             df_preview_raw.columns = [f"列 {i}" for i in range(max_columns)]
-            st.subheader("🔍 CSVファイルの冒頭15行")
+            st.subheader("🔍 CSVファイルの冒頭20行")
             st.dataframe(df_preview_raw)
 
             # 文字列を再度読み込み用に変換
@@ -88,7 +103,7 @@ def main():
             string_data.seek(0)
             df_preview = pd.read_csv(
                 string_data,
-                nrows=15,
+                nrows=5,
                 skiprows=skiprows,
                 encoding=encoding_checker.encoding,
                 header=None,
