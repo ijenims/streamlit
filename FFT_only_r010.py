@@ -69,6 +69,43 @@ def plot_fft(frequencies, fft_result, graph_title, freq_max=100, acc_min=0, acc_
     ax.legend()
     return fig
 
+def preview_csv_head(text_content: str) -> Tuple[pd.DataFrame, int]:
+    lines = text_content.splitlines()
+    preview_lines = lines[:20]
+    split_rows = [line.split(',') for line in preview_lines]
+    max_columns = max(len(row) for row in split_rows)
+    normalized_rows = [row + [''] * (max_columns - len(row)) for row in split_rows]
+    df_preview_raw = pd.DataFrame(normalized_rows)
+    df_preview_raw.index.name = "行番号"
+    df_preview_raw.columns = [f"列 {i}" for i in range(max_columns)]
+    
+    st.subheader("CSVファイルの冒頭20行")
+    st.dataframe(df_preview_raw)
+    return df_preview_raw, max_columns
+
+def sidebar_settings(df_preview_raw: pd.DataFrame) -> Tuple[int, List[int]]:
+    with st.sidebar:
+        skiprows = st.number_input("データ開始行", value=0, min_value=0)
+
+        # 実データが入ってる列だけ抽出（空列を除外）
+        non_empty_cols = [
+            i for i in range(df_preview_raw.shape[1])
+            if df_preview_raw.iloc[:, i].str.strip().replace('', np.nan).dropna().any()
+        ]
+
+        usecols = st.multiselect(
+            "表示する列を選択",
+            options=non_empty_cols,
+            default=[non_empty_cols[0]] if non_empty_cols else [],
+            format_func=lambda x: f"列 {x}"
+        )
+
+        if not usecols:
+            st.warning("少なくとも1つの列を選択してください")
+            st.stop()
+
+    return skiprows, usecols
+
 def main():
     st.title("FFT分析アプリケーション")
 
@@ -76,11 +113,10 @@ def main():
         st.header("設定")
         uploaded_file = st.file_uploader("CSVファイルを選択してください", type=['csv'])
 
-    # ファイルが新しくアップロードされた場合にセッション状態をリセット
     if uploaded_file is not None:
         if 'last_uploaded_file' not in st.session_state or st.session_state.last_uploaded_file != uploaded_file:
-            st.session_state.clear()  # セッション状態をリセット
-            st.session_state.last_uploaded_file = uploaded_file  # 新しいファイルを記録
+            st.session_state.clear()
+            st.session_state.last_uploaded_file = uploaded_file
 
     if uploaded_file is not None:
         try:
@@ -88,26 +124,14 @@ def main():
             encoding_checker = EncodingChecker(file_contents)
             text_content = file_contents.decode(encoding_checker.encoding)
 
-            # 1. CSVファイルの冒頭20行プレビュー（表形式）
-            lines = text_content.splitlines()
-            preview_lines = lines[:20]
-            split_rows = [line.split(',') for line in preview_lines]
-            max_columns = max(len(row) for row in split_rows)
-            normalized_rows = [row + [''] * (max_columns - len(row)) for row in split_rows]
-            df_preview_raw = pd.DataFrame(normalized_rows)
-            df_preview_raw.index.name = "行番号"
-            df_preview_raw.columns = [f"列 {i}" for i in range(max_columns)]
-            st.subheader("CSVファイルの冒頭20行")
-            st.dataframe(df_preview_raw)
+            # --- 🔁 関数でリファクタリング済みの部分 ---
+            df_preview_raw, max_columns = preview_csv_head(text_content)
 
-            # 文字列を再度読み込み用に変換
+            # 再読み込み用に変換
             string_data = io.StringIO(text_content)
 
-            # サイドバー：データ開始行を指定
-            with st.sidebar:
-                skiprows = st.number_input("データ開始行", value=0, min_value=0)
+            skiprows, usecols = sidebar_settings(df_preview_raw)
 
-            # 2. データ開始行以降のプレビュー（表形式）
             string_data.seek(0)
             df_preview = pd.read_csv(
                 string_data,
@@ -119,24 +143,10 @@ def main():
                 sep=',',
                 skipinitialspace=True
             )
+
             st.subheader(f"データ開始行({skiprows}行目)以降のプレビュー")
             st.dataframe(df_preview)
 
-            # 列選択
-            with st.sidebar:
-                if df_preview.shape[1] > 0:
-                    available_columns = list(range(df_preview.shape[1]))
-                    usecols = st.multiselect(
-                        "表示する列を選択",
-                        options=available_columns,
-                        default=[0],
-                        format_func=lambda x: f"列 {x}"
-                    )
-                    if not usecols:
-                        st.warning("少なくとも1つの列を選択してください")
-                        st.stop()
-
-            # フルデータ読み込み
             string_data.seek(0)
             df = pd.read_csv(
                 string_data,
@@ -150,7 +160,6 @@ def main():
             )
 
             with st.sidebar:
-                # 時系列データ表示ボタン
                 if st.button("時系列データを表示", key="show_raw_data"):
                     st.session_state.show_raw = True
                     st.session_state.df = df
@@ -163,7 +172,6 @@ def main():
                 )
                 samplerate = st.number_input("サンプリング周波数 (Hz)", value=1000, min_value=1)
 
-            # 時系列データのグラフ表示
             if 'show_raw' in st.session_state and st.session_state.show_raw:
                 st.subheader("選択列の時系列データ")
                 fig_raw, ax_raw = plt.subplots(figsize=(15, 5))
@@ -171,7 +179,7 @@ def main():
                     ax_raw.plot(st.session_state.df[col], label=f'Column {col}', alpha=0.7)
                 ax_raw.set_xlabel('Sample')
                 ax_raw.set_ylabel('Acceleration')
-                ax_raw.legend(fontsize=16)  # 凡例の文字サイズを指定
+                ax_raw.legend(fontsize=16)
                 ax_raw.grid(True)
                 st.pyplot(fig_raw)
 
@@ -220,7 +228,7 @@ def main():
                 ax.set_ylabel("Acceleration")
                 ax.set_title(f"Column {st.session_state.fft_column} FFT Result")
                 ax.grid(True)
-                ax.legend(fontsize=12)  # 凡例の文字サイズを指定
+                ax.legend(fontsize=12)
                 ax.set_yscale(yscale)
                 ax.set_xlim(0, st.session_state.max_freq)
                 st.pyplot(fig)
