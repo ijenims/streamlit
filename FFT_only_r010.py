@@ -83,28 +83,101 @@ def preview_csv_head(text_content: str) -> Tuple[pd.DataFrame, int]:
     st.dataframe(df_preview_raw)
     return df_preview_raw, max_columns
 
-def sidebar_settings(df_preview_raw: pd.DataFrame) -> Tuple[int, List[int]]:
+def sidebar_skiprows() -> int:
     with st.sidebar:
         skiprows = st.number_input("データ開始行", value=0, min_value=0)
+    return skiprows
 
-        # 実データが入ってる列だけ抽出（空列を除外）
-        non_empty_cols = [
-            i for i in range(df_preview_raw.shape[1])
-            if df_preview_raw.iloc[:, i].str.strip().replace('', np.nan).dropna().any()
-        ]
-
+def sidebar_usecols(df_preview: pd.DataFrame) -> List[int]:
+    with st.sidebar:
+        available_columns = list(range(df_preview.shape[1]))
         usecols = st.multiselect(
             "表示する列を選択",
-            options=non_empty_cols,
-            default=[non_empty_cols[0]] if non_empty_cols else [],
+            options=available_columns,
+            default=[0],
             format_func=lambda x: f"列 {x}"
         )
-
         if not usecols:
             st.warning("少なくとも1つの列を選択してください")
             st.stop()
+    return usecols
 
-    return skiprows, usecols
+def sidebar_fft_settings(usecols: List[int]) -> Tuple[int, int]:
+    with st.sidebar:
+        fft_column = st.selectbox(
+            "FFT分析する列",
+            options=usecols,
+            format_func=lambda x: f"列 {x}"
+        )
+        samplerate = st.number_input("サンプリング周波数 (Hz)", value=1000, min_value=1)
+    return fft_column, samplerate
+
+def handle_fft_execution(df, fft_column, samplerate):
+    with st.sidebar:
+        if st.button("FFT分析実行"):
+            filtered_frequencies, filtered_fft_result = GetFFT(df[fft_column], samplerate).results
+            st.session_state.fft_done = True
+            st.session_state.frequencies = filtered_frequencies
+            st.session_state.fft_result = filtered_fft_result
+            st.session_state.fft_column = fft_column
+            st.session_state.max_freq = int(filtered_frequencies.max())
+
+def show_fft_result_graph():
+    st.subheader(f"列 {st.session_state.fft_column} のFFT分析結果")
+
+    yscale = st.radio(
+        "**縦軸の目盛**",
+        options=['linear', 'log'],
+        format_func=lambda x: '方眼目盛' if x == 'linear' else '対数目盛',
+        horizontal=True,
+        index=0
+    )
+
+    col_freq_input, col_button = st.columns([1, 3])
+
+    with col_freq_input:
+        max_freq = st.number_input(
+            label="**周波数表示範囲 (Hz)**",
+            min_value=1,
+            max_value=int(st.session_state.frequencies.max()),
+            value=int(st.session_state.frequencies.max()),
+            step=1,
+            key="max_freq_input"
+        )
+
+    with col_button:
+        st.markdown(" ")  # ← これでボタンの位置を下に下げる
+        update_pressed = st.button("グラフを更新", key="update_graph")
+        if update_pressed:
+            st.session_state.max_freq = max_freq
+
+    if 'max_freq' not in st.session_state:
+        st.session_state.max_freq = max_freq
+
+    fig, ax = plt.subplots(figsize=(15, 7))
+    ax.plot(st.session_state.frequencies,
+            st.session_state.fft_result,
+            label="FFT Result",
+            alpha=0.7)
+    ax.set_xlabel("Frequency (Hz)")
+    ax.set_ylabel("Acceleration")
+    ax.set_title(f"Column {st.session_state.fft_column} FFT Result")
+    ax.grid(True)
+    ax.legend(fontsize=12)
+    ax.set_yscale(yscale)
+    ax.set_xlim(0, st.session_state.max_freq)
+    st.pyplot(fig)
+
+def show_time_series_plot():
+    st.subheader("選択列の時系列データ")
+    fig_raw, ax_raw = plt.subplots(figsize=(15, 5))
+    for col in st.session_state.usecols:
+        ax_raw.plot(st.session_state.df[col], label=f'Column {col}', alpha=0.7)
+    ax_raw.set_xlabel("Sample")
+    ax_raw.set_ylabel("Acceleration")
+    ax_raw.legend(fontsize=16)
+    ax_raw.grid(True)
+    st.pyplot(fig_raw)
 
 def main():
     st.title("FFT分析アプリケーション")
@@ -124,14 +197,14 @@ def main():
             encoding_checker = EncodingChecker(file_contents)
             text_content = file_contents.decode(encoding_checker.encoding)
 
-            # --- 🔁 関数でリファクタリング済みの部分 ---
+            # ファイル読み込み後の最初
             df_preview_raw, max_columns = preview_csv_head(text_content)
 
-            # 再読み込み用に変換
+            # 1. skiprows設定（先に取る）
+            skiprows = sidebar_skiprows()
+
+            # 2. データ開始行以降のプレビュー読み込み
             string_data = io.StringIO(text_content)
-
-            skiprows, usecols = sidebar_settings(df_preview_raw)
-
             string_data.seek(0)
             df_preview = pd.read_csv(
                 string_data,
@@ -143,9 +216,11 @@ def main():
                 sep=',',
                 skipinitialspace=True
             )
-
             st.subheader(f"データ開始行({skiprows}行目)以降のプレビュー")
             st.dataframe(df_preview)
+
+            # 3. usecols選択（df_previewに基づく）
+            usecols = sidebar_usecols(df_preview)
 
             string_data.seek(0)
             df = pd.read_csv(
@@ -165,73 +240,16 @@ def main():
                     st.session_state.df = df
                     st.session_state.usecols = usecols
                 
-                fft_column = st.selectbox(
-                    "FFT分析する列",
-                    options=usecols,
-                    format_func=lambda x: f"列 {x}"
-                )
-                samplerate = st.number_input("サンプリング周波数 (Hz)", value=1000, min_value=1)
+            fft_column, samplerate = sidebar_fft_settings(usecols)
 
             if 'show_raw' in st.session_state and st.session_state.show_raw:
-                st.subheader("選択列の時系列データ")
-                fig_raw, ax_raw = plt.subplots(figsize=(15, 5))
-                for col in st.session_state.usecols:
-                    ax_raw.plot(st.session_state.df[col], label=f'Column {col}', alpha=0.7)
-                ax_raw.set_xlabel('Sample')
-                ax_raw.set_ylabel('Acceleration')
-                ax_raw.legend(fontsize=16)
-                ax_raw.grid(True)
-                st.pyplot(fig_raw)
+                show_time_series_plot()
 
-            with st.sidebar:
-                if st.button("FFT分析実行"):
-                    filtered_frequencies, filtered_fft_result = GetFFT(df[fft_column], samplerate).results
-                    st.session_state.fft_done = True
-                    st.session_state.frequencies = filtered_frequencies
-                    st.session_state.fft_result = filtered_fft_result
-                    st.session_state.fft_column = fft_column
-                    st.session_state.max_freq = int(filtered_frequencies.max())
+            # FFT分析ボタンと処理
+            handle_fft_execution(df, fft_column, samplerate)
 
             if 'fft_done' in st.session_state and st.session_state.fft_done:
-                st.subheader(f"列 {st.session_state.fft_column} のFFT分析結果")
-                yscale = st.radio(
-                    "縦軸の目盛り",
-                    options=['linear', 'log'],
-                    format_func=lambda x: '方眼目盛' if x == 'linear' else '対数目盛',
-                    horizontal=True,
-                    index=0
-                )
-                col1, col2 = st.columns([2, 1])
-                with col1:
-                    max_freq = st.number_input(
-                        "周波数表示範囲 (Hz)",
-                        min_value=1,
-                        max_value=int(st.session_state.frequencies.max()),
-                        value=int(st.session_state.frequencies.max()),
-                        step=1
-                    )
-                with col2:
-                    st.write("")
-                    update_pressed = st.button("グラフを更新", key="update_graph")
-                    if update_pressed:
-                        st.session_state.max_freq = max_freq
-
-                if 'max_freq' not in st.session_state:
-                    st.session_state.max_freq = max_freq
-
-                fig, ax = plt.subplots(figsize=(15, 7))
-                ax.plot(st.session_state.frequencies,
-                        st.session_state.fft_result,
-                        label="FFT Result",
-                        alpha=0.7)
-                ax.set_xlabel("Frequency (Hz)")
-                ax.set_ylabel("Acceleration")
-                ax.set_title(f"Column {st.session_state.fft_column} FFT Result")
-                ax.grid(True)
-                ax.legend(fontsize=12)
-                ax.set_yscale(yscale)
-                ax.set_xlim(0, st.session_state.max_freq)
-                st.pyplot(fig)
+                show_fft_result_graph()
 
         except Exception as e:
             st.error(f"データの読み込み中にエラーが発生しました: {e}")
