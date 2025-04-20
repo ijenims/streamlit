@@ -1,7 +1,7 @@
 # coding: utf-8
 '''
 FFT_only_r0**.py
-# 2025.4.19 r011
+# 2025.4.20 r012
 
 # csvファイルをアップロードし, FFT分析結果をグラフで表示
 # Streamlit用 url: https://app-dsjptfkljmnx3rny74xnib.streamlit.app/
