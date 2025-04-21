@@ -18,6 +18,8 @@ FFT_only_r0**.py
 - 抽出個数が元データの個数を上回ってもエラーとはせず、警告表示だけにする
 ### 要改善点
 - データ分析開始地点を選べるようにする
+- 超低周波領域をカットする（数値入力で__Hz以下カット）
+-- これは「周波数表示範囲」入力とペアにする
 
 ### 将来構想
 - wavファイル対応とする
@@ -176,7 +178,7 @@ def handle_fft_execution(df, fft_column, samplerate, extraction_settings):
             st.info(f"FFT実行データ点数: {len(data)}点")
 
 def show_time_series_plot(df: pd.DataFrame, usecols: List[int], extraction_settings: dict):
-    st.subheader("選択列の時系列データ")
+    #st.subheader("選択列の時系列データ")
     fig, ax = plt.subplots(figsize=(15, 5))
     
     # データプロット
@@ -337,6 +339,8 @@ def main():
                 fft_column, samplerate, extraction_settings = sidebar_fft_settings(usecols, df, rate=rate)
                 extraction_settings["sampling_rate"] = samplerate
 
+                # グラフ表示前にタイトルを出す
+                st.subheader("選択列の時系列データ")
                 # グラフ描画エリアの明示的制御
                 plot_area = st.empty()
                 plot_area.pyplot(show_time_series_plot(df, usecols, extraction_settings))
