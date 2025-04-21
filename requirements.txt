@@ -5,3 +5,4 @@ matplotlib
 scipy
 plotly
 pillow==10.2.0
+soundfile>=0.12.1
